@@ -181,6 +181,21 @@ class PowerDNSClient:
 
     def get_record(self, server, zone, name, rtype):
         """Search for a given record (name) in the specified zone."""
+        try:
+            # first try the search api
+            return self.search_record(name, server, rtype, zone)
+        except PowerDNSError as e:
+            if e.status_code != 401:
+                raise
+            # maybe search is not authorized, try to get the whole zone instead
+            zone = self.get_zone(server, zone)
+            canonical_name = self._make_canonical(name)
+            for record in zone.get("rrsets"):
+                if record['name'] == canonical_name and record['type'] == rtype:
+                    return record
+            return dict(records=[], comments=[])
+
+    def search_record(self, server, zone, name, rtype):
         url = self._get_search_url(server)
         params = {'q': name}
 
